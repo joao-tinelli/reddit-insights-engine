@@ -1,0 +1,25 @@
+# Environments
+venv/
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Temporary and Cache files
+tmp/
+.tmp/
+.cache/
+cache/
+scraper.log
+backend.log
+
+# Frontend Build
+frontend/dist/
+frontend/node_modules/
+
+# Credentials
+credentials.json
+token.json
