@@ -19,7 +19,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: "http://localhost:8002/api"
+        VITE_API_BASE_URL: "/api"
     container_name: reddit_scraper_frontend
     ports:
       - "5173:80"
