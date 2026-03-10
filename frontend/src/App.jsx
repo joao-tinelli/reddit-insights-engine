@@ -11,7 +11,7 @@ function App() {
   const [exporting, setExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState(null);
 
-  const API_BASE_URL = 'http://localhost:8002/api';
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002/api';
 
   const handleSearch = async (e) => {
     e.preventDefault();
