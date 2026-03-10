@@ -61,7 +61,7 @@ def get_sentiment_label(score: float) -> str:
 
 def get_post_data_and_summary(post_id: str, headers: Dict[str, str]) -> Dict[str, Any]:
     """Fetch comments for a post and calculate average sentiment and generate an AI summary."""
-    url = f"https://www.reddit.com/comments/{post_id}.json?sort=top&limit=15"
+    url = f"https://old.reddit.com/comments/{post_id}.json?sort=top&limit=15"
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()
@@ -124,10 +124,18 @@ def get_top_posts(query: str, limit: int = 100, top_k: int = 5) -> List[Dict[str
     logger.info(f"Starting Reddit search for query: '{query}'")
     
     headers = {
-        'User-Agent': 'linux:reddit-insights-engine:v1.0 (by /u/developer)'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1'
     }
     
-    url = f"https://www.reddit.com/search.json?q={query}&sort=new&limit={limit}"
+    url = f"https://old.reddit.com/search.json?q={query}&sort=new&limit={limit}"
     logger.info(f"Fetching posts from: {url}")
     
     try:
