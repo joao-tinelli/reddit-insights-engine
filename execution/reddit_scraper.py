@@ -17,12 +17,20 @@ if not os.path.exists(LOG_DIR):
 logger = logging.getLogger("reddit_scraper")
 logger.setLevel(logging.INFO)
 
+# Formatter
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
 # File handler
 file_handler = logging.FileHandler(LOG_FILE, mode='w')
 file_handler.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
+
+# Console / Docker logs handler (StreamHandler)
+stream_handler = logging.StreamHandler(sys.stdout)
+stream_handler.setLevel(logging.INFO)
+stream_handler.setFormatter(formatter)
+logger.addHandler(stream_handler)
 
 import threading
 
@@ -115,7 +123,7 @@ def get_top_posts(query: str, limit: int = 100, top_k: int = 5) -> List[Dict[str
     logger.info(f"Starting Reddit search for query: '{query}'")
     
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 RedditScraperAgent/1.0'
+        'User-Agent': 'linux:reddit-insights-engine:v1.0 (by /u/developer)'
     }
     
     url = f"https://www.reddit.com/search.json?q={query}&sort=new&limit={limit}"
