@@ -11,12 +11,17 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: reddit_scraper_backend
     ports:
       - "8002:8002"
     volumes:
       - ./execution:/app/execution
       - ./tmp:/app/tmp
+    environment:
+      - PYTHONUNBUFFERED=1
+      - XDG_CACHE_HOME=/app/tmp/cache
     restart: unless-stopped
     depends_on:
       - redis_cache
@@ -24,13 +29,15 @@ services:
   frontend:
     build:
       context: ./frontend
+      dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: "/api"
+    container_name: reddit_scraper_frontend
     ports:
       - "80:80"
-    restart: unless-stopped
     depends_on:
       - backend
+    restart: unless-stopped
 
 volumes:
   redis_data: {}
