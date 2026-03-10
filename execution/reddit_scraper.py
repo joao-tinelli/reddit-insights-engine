@@ -64,6 +64,13 @@ def get_post_data_and_summary(post_id: str, headers: Dict[str, str]) -> Dict[str
     url = f"https://old.reddit.com/comments/{post_id}.json?sort=top&limit=15"
     try:
         response = requests.get(url, headers=headers)
+        if response.status_code == 403 or response.status_code == 429:
+            # On AWS IP Block
+            return {
+                "sentiment": {"score": 0, "label": "Neutral", "count": 0},
+                "summary": "AI Insight skipped: Reddit CDN blocked AWS Datacenter scraping for comments."
+            }
+            
         response.raise_for_status()
         data = response.json()
         
@@ -111,11 +118,70 @@ def get_post_data_and_summary(post_id: str, headers: Dict[str, str]) -> Dict[str
     except Exception as e:
         import traceback
         logger.error(f"Error fetching data/summary for post {post_id}: {str(e)}")
-        logger.error(traceback.format_exc())
+        # Suppress traceback mapping in stdout to keep logs clean
         return {
             "sentiment": {"score": 0, "label": "Neutral", "count": 0},
-            "summary": f"Error generating AI insight: {str(e)}"
+            "summary": f"Insight unavailable: {str(e)}"
         }
+
+def get_top_posts_pullpush(query: str, limit: int = 100, top_k: int = 5) -> List[Dict[str, Any]]:
+    """Failover function that uses the pullpush.io community ingestor to bypass AWS Datacenter blocks."""
+    logger.info(f"Fallback triggered: Fetching from pullpush.io mirror for query '{query}'")
+    url = f"https://api.pullpush.io/reddit/search/submission/?q={query}&size={limit}"
+    
+    try:
+        response = requests.get(url, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+        
+        posts = data.get('data', [])
+        logger.info(f"Successfully retrieved {len(posts)} posts from PullPush.")
+        
+        processed_posts = []
+        for post in posts:
+            upvotes = post.get('score', 0)
+            comments_count = post.get('num_comments', 0)
+            
+            # Engagement Score
+            score = upvotes + (comments_count * 2)
+            
+            processed_posts.append({
+                'id': post.get('id'),
+                'title': post.get('title', 'No Title'),
+                'author': post.get('author', 'Unknown'),
+                'url': f"https://www.reddit.com{post.get('permalink', '')}",
+                'upvotes': upvotes,
+                'comments': comments_count,
+                'score': score,
+                'created_utc': post.get('created_utc', 0),
+                'thumbnail': ''
+            })
+            
+        # Sort by the calculated score descending
+        sorted_posts = sorted(processed_posts, key=lambda x: x['score'], reverse=True)[:top_k]
+        
+        # Attempt to get comments from reddit for these top posts. If 403, we get the graceful degradation built in get_post_data_and_summary
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+        
+        logger.info(f"Analyzing sentiment with failover awareness...")
+        import concurrent.futures
+        def process_post(post):
+            insight = get_post_data_and_summary(post['id'], headers)
+            post['sentiment'] = insight['sentiment']
+            post['ai_summary'] = insight['summary']
+            logger.info(f"Post Analysis Complete: {post['title'][:50]}...")
+            return post
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=top_k) as executor:
+            top_posts = list(executor.map(process_post, sorted_posts))
+            
+        return top_posts
+
+    except Exception as e:
+        logger.error(f"Fallback pullpush API also failed: {str(e)}")
+        return []
 
 def get_top_posts(query: str, limit: int = 100, top_k: int = 5) -> List[Dict[str, Any]]:
     """
@@ -140,6 +206,12 @@ def get_top_posts(query: str, limit: int = 100, top_k: int = 5) -> List[Dict[str
     
     try:
         response = requests.get(url, headers=headers)
+        
+        # If AWS IP is blocked by Fastly
+        if response.status_code == 403 or response.status_code == 429:
+            logger.warning(f"Reddit actively blocked AWS IP ({response.status_code}). Initiating failover to PullPush.io...")
+            return get_top_posts_pullpush(query, limit, top_k)
+            
         response.raise_for_status()
         data = response.json()
         
@@ -189,9 +261,7 @@ def get_top_posts(query: str, limit: int = 100, top_k: int = 5) -> List[Dict[str
         
     except requests.exceptions.RequestException as e:
         logger.error(f"Error fetching data from Reddit: {str(e)}")
-        if hasattr(response, 'status_code') and response.status_code == 429:
-            logger.error("Rate limited by Reddit. Try again later.")
-        return []
+        return get_top_posts_pullpush(query, limit, top_k)
     except json.JSONDecodeError as e:
         logger.error(f"Error parsing JSON response from Reddit: {str(e)}")
         return []
